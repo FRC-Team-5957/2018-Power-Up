@@ -53,6 +53,7 @@ public class Robot extends IterativeRobot {
 
 	// Sensors and subsystems
 	ADXRS450_Gyro gyro;
+	DigitalInput leftAuto, rightAuto;
 	Compressor compressor;
 
 	// CAN Channels
@@ -111,6 +112,8 @@ public class Robot extends IterativeRobot {
 
 		// Sensors and subsystems
 		gyro = new ADXRS450_Gyro();
+		leftAuto = new DigitalInput(0);
+		rightAuto = new DigitalInput(1);
 		compressor = new Compressor(PCM);
 
 		// OI
@@ -122,6 +125,20 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void autonomousInit() {
+
+		// Switch for selecting auto side
+		String autoPosition = getAutoPosition();
+		switch (autoPosition) {
+		case "left":
+			// TODO: Left auto logic (write left auto here)
+			break;
+		case "right":
+			// TODO: Right auto logic (write right auto here)
+			break;
+		case "middle":
+			// TODO: Middle auto logic (write middle auto here)
+			break;
+		}
 
 	}
 
@@ -155,6 +172,27 @@ public class Robot extends IterativeRobot {
 	// Code runs periodically at all times
 	@Override
 	public void robotPeriodic() {
+
+	}
+
+	// Methods to be tested
+	public String getAutoPosition() {
+
+		/*
+		 * 3-position switch left position { DIO0 = true, DIO1 = false} right position {
+		 * DIO0 = false, DIO1 = true} middle potitiom { DIO0 = DIO1 = false}
+		 */
+
+		String autoPosition = "";
+		if (leftAuto.get() && !rightAuto.get()) {
+			autoPosition = "left";
+		} else if (!leftAuto.get() && rightAuto.get()) {
+			autoPosition = "right";
+		} else {
+			autoPosition = "middle";
+		}
+
+		return autoPosition;
 
 	}
 
