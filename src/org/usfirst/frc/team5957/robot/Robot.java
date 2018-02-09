@@ -109,8 +109,9 @@ public class Robot extends IterativeRobot {
 		leftClimb = new VictorSP(leftClimbCh);
 		rightClimb = new VictorSP(rightClimbCh);
 
-		// Sensors
+		// Sensors and subsystems
 		gyro = new ADXRS450_Gyro();
+		compressor = new Compressor(PCM);
 
 		// OI
 		driver = new Joystick(driverCh);
@@ -144,11 +145,18 @@ public class Robot extends IterativeRobot {
 		// Standard drive, squared inputs, no correction
 		drive.arcadeDrive(driver.getRawAxis(LY), driver.getRawAxis(RX), true);
 
-		Timer.delay(0.04);
+		// Standard timer delay
+		Timer.delay(0.01);
 	}
 
 	// DANGER ZONE! EXPERIMENTAL CODE BEYOND THIS POINT!
 	// -------------------------------------------------
+
+	// Code runs periodically at all times
+	@Override
+	public void robotPeriodic() {
+
+	}
 
 	// Test variables
 	boolean gtaActive;
