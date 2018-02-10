@@ -10,6 +10,7 @@ package org.usfirst.frc.team5957.robot;
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Solenoid;
@@ -17,6 +18,8 @@ import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.VictorSP;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
 
@@ -33,6 +36,9 @@ public class Robot extends IterativeRobot {
 	final int rearRightCh = 3;
 	final int gearCh = 0;
 
+	// Encoders
+	Encoder leftEnc, rightEnc;
+
 	// Lift and gripper
 	VictorSP leftSpinny, rightSpinny, lift;
 	DigitalInput topLimit, lowLimit;
@@ -42,8 +48,8 @@ public class Robot extends IterativeRobot {
 	final int leftSpinnyCh = 4;
 	final int rightSpinnyCh = 5;
 	final int liftCh = 6;
-	final int topCh = 0;
-	final int lowCh = 1;
+	final int topCh = 6;
+	final int lowCh = 7;
 	final int gripperCh = 1;
 
 	// Climber
@@ -96,6 +102,10 @@ public class Robot extends IterativeRobot {
 				new SpeedControllerGroup(frontRight, rearRight));
 		gear = new Solenoid(gearCh);
 		gear.set(lowGear);
+
+		// Encoders
+		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);// TODO adjust values until its 1:1
+		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);// TODO adjust values until its 1:1
 
 		// Lift and gripper
 		lift = new VictorSP(liftCh);
@@ -201,6 +211,14 @@ public class Robot extends IterativeRobot {
 	final int GTA = 1;
 	final int arcade = 2;
 
+	// Testing Encoders
+	int countL = 0;
+	int countR = 0;
+	double distL = 0;
+	double distR = 0;
+	boolean stoppedL = true;
+	boolean stoppedR = true;
+
 	@Override
 	public void testInit() {
 
@@ -208,6 +226,13 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void testPeriodic() {
+		countL = leftEnc.get();
+		countR = rightEnc.get();
+		distL = leftEnc.getDistance(); // returns number of rotations of wheel shaft (adjusted by the k4X in the
+										// constructor)
+		distR = rightEnc.getRaw(); // returns number of rotations of the encoder shaft
+		stoppedL = leftEnc.getStopped();
+		stoppedR = rightEnc.getStopped();
 
 		if (tester.getRawButton(GTA) && !tester.getRawButton(arcade)) {
 			gtaActive = true;
@@ -234,5 +259,10 @@ public class Robot extends IterativeRobot {
 
 		Timer.delay(0.04);
 
+		// TODO Figure out where these values show up in the SmartDashboard
+		SmartDashboard.putNumber("LeftEncoder", distL);
+		SmartDashboard.putNumber("RightEncoder", distR);
+		LiveWindow.add(leftEnc);
+		LiveWindow.add(rightEnc);
 	}
 }
