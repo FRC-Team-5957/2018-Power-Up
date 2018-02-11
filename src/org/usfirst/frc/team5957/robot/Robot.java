@@ -60,6 +60,9 @@ public class Robot extends IterativeRobot {
 	Encoder leftEnc, rightEnc;
 	DigitalInput leftAuto, rightAuto, scale;
 	Compressor compressor;
+	final int sideSelectorA = 0;
+	final int sideSelectorB = 1;
+	final int scaleCh = 2;
 
 	// CAN Channels
 	final int PCM = 1;
@@ -123,9 +126,9 @@ public class Robot extends IterativeRobot {
 		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);// TODO adjust values until its 1 rotation = 1
 																		// count
 		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
-		leftAuto = new DigitalInput(0);
-		rightAuto = new DigitalInput(1);
-		scale = new DigitalInput(2);
+		leftAuto = new DigitalInput(sideSelectorA);
+		rightAuto = new DigitalInput(sideSelectorB);
+		scale = new DigitalInput(scaleCh);
 		compressor = new Compressor(PCM);
 
 		// OI
