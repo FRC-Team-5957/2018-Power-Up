@@ -26,52 +26,60 @@ public class Robot extends IterativeRobot {
 
 	// Declarations and constants
 	// Drivetrain
-	VictorSP frontLeft, rearLeft, frontRight, rearRight;
-	DifferentialDrive drive;
-	Solenoid gear;
-	final boolean highGear = true;
-	final boolean lowGear = false;
-	final int frontLeftCh = 0;
-	final int rearLeftCh = 1;
-	final int frontRightCh = 2;
-	final int rearRightCh = 3;
-	final int gearCh = 0;
+	private VictorSP frontLeft, rearLeft, frontRight, rearRight;
+	private DifferentialDrive drive;
+	private Solenoid gear;
+	private final boolean highGear = true;
+	private final boolean lowGear = false;
+	private final int frontLeftCh = 0;
+	private final int rearLeftCh = 1;
+	private final int frontRightCh = 2;
+	private final int rearRightCh = 3;
+	private final int gearCh = 0;
+	private double maxSpeed = 0.6;
 
-	// Lift and gripper
-	VictorSP leftSpinny, rightSpinny, lift;
-	DigitalInput topLimit, lowLimit;
-	Solenoid gripper;
-	final boolean closed = true;
-	final boolean open = false;
-	final int leftSpinnyCh = 4;
-	final int rightSpinnyCh = 5;
-	final int liftCh = 6;
-	final int topCh = 6;
-	final int lowCh = 7;
-	final int gripperCh = 1;
+	// Elevator and intake
+	private VictorSP leftSpinny, rightSpinny, lift;
+	private DigitalInput topLimit, lowLimit;
+	private Solenoid gripper;
+	private final boolean closed = true;
+	private final boolean open = false;
+	private final int leftSpinnyCh = 4;
+	private final int rightSpinnyCh = 5;
+	private final int liftCh = 6;
+	private final int topCh = 6;
+	private final int lowCh = 7;
+	private final int gripperCh = 1;
+	// TODO test direction for elevator
+	private final double testSpeed = 0.3;
+	// TODO test direction for spinnies
+	private final double intakeSpeed = -0.3;
+	private final double spitSpeed = 1;
+	private final double dropSpeed = 0.2;
+	private final boolean commandStyle = true;
+	private boolean gathering = false;
 
-	// Climber
-	VictorSP leftClimb, rightClimb;
-	final int leftClimbCh = 7;
-	final int rightClimbCh = 8;
+	// Climber ( L O L )
+	// private VictorSP leftClimb, rightClimb;
+	// private final int leftClimbCh = 7;
+	// final int rightClimbCh = 8;
 
 	// Sensors and subsystems
-	ADXRS450_Gyro gyro;
-	Encoder leftEnc, rightEnc;
-	DigitalInput leftAuto, rightAuto, scale;
-	Compressor compressor;
-	final int sideSelectorA = 0;
-	final int sideSelectorB = 1;
-	final int scaleCh = 2;
+	private ADXRS450_Gyro gyro;
+	private Encoder leftEnc, rightEnc;
+	private DigitalInput leftAuto, rightAuto, scale;
+	private Compressor compressor;
+	private final int sideSelectorA = 0;
+	private final int sideSelectorB = 1;
+	private final int scaleCh = 2;
 
 	// CAN Channels
-	final int PCM = 1;
+	private final int PCM = 1;
 
 	// OI
-	Joystick driver, operator, tester;
-	final int driverCh = 0;
-	final int operatorCh = 1;
-	final int testCh = 3;
+	private Joystick driver, operator, tester;
+	private final int driverCh = 0;
+	private final int operatorCh = 1;
 
 	// PS4
 	final int x = 1;
@@ -87,13 +95,21 @@ public class Robot extends IterativeRobot {
 	final int L2 = 2;
 	final int R2 = 3;
 	// Logitech
-	// TODO: figure out mapping for Logitech Controller
 	// N64
-	// TODO: figure out mapping for N64 controller
 
 	// Constants and variables
 	String gameData;
 	String startPosition;
+
+	// PID system values
+	// Gyro
+	double gyroCurrent;
+	double gyroTarget;
+	double gyro_kP;
+	double gyro_kD;
+	boolean turning;
+
+	// Encoders
 
 	@Override
 	public void robotInit() {
@@ -112,30 +128,47 @@ public class Robot extends IterativeRobot {
 		lift = new VictorSP(liftCh);
 		leftSpinny = new VictorSP(leftSpinnyCh);
 		rightSpinny = new VictorSP(rightSpinnyCh);
+		rightSpinny.setInverted(true);
 		gripper = new Solenoid(gripperCh);
 		topLimit = new DigitalInput(topCh);
 		lowLimit = new DigitalInput(lowCh);
 		gripper.set(closed);
 
 		// Climber
-		leftClimb = new VictorSP(leftClimbCh);
-		rightClimb = new VictorSP(rightClimbCh);
+		// leftClimb = new VictorSP(leftClimbCh);
+		// rightClimb = new VictorSP(rightClimbCh);
 
 		// Sensors and subsystems
 		gyro = new ADXRS450_Gyro();
-		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);// TODO adjust values until its 1 rotation = 1
-																		// count
+		gyro.reset();
+		gyro.calibrate();
+		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
 		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
 		leftAuto = new DigitalInput(sideSelectorA);
 		rightAuto = new DigitalInput(sideSelectorB);
 		scale = new DigitalInput(scaleCh);
 		compressor = new Compressor(PCM);
+		compressor.setClosedLoopControl(true);
 
 		// OI
 		driver = new Joystick(driverCh);
 		operator = new Joystick(operatorCh);
-		tester = new Joystick(testCh);
 
+	}
+
+	@Override
+	public void robotPeriodic() {
+		gyroCurrent = gyro.getAngle();
+		if (isAutonomous()) {
+
+		} else if (isOperatorControl()) {
+			if (held(driver, RX)) {
+				turning = true;
+			} else {
+				turning = false;
+				gyroTarget = gyro.getAngle();
+			}
+		}
 	}
 
 	@Override
@@ -182,34 +215,102 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void teleopPeriodic() {
-		// TODO: Finish teleop outline
+		// Drivetrain power values
+		double speedAxisVal = squaredish(driver.getRawAxis(LY));
+		double rotationAxisVal = squaredish(driver.getRawAxis(RX));
+		double speed = maxSpeed * speedAxisVal;
+		double rotation = turning ? maxSpeed * rotationAxisVal : ((gyroTarget - gyroCurrent) * gyro_kP);
 
-		// Shift
-		if (driver.getRawButton(L1)) {
+		// Drivetrain
+		if (pressed(driver, L1)) {
 			gear.set(lowGear);
-		} else if (driver.getRawButton(R2)) {
+			maxSpeed = 0.6;
+		} else if (pressed(driver, R1)) {
 			gear.set(highGear);
+			maxSpeed = 1;
 		}
 
+		drive.arcadeDrive(speed, rotation);
+
 		// Lift logic
+		if (pressed(operator, triangle) && !topLimit.get()) {
+			lift.set(testSpeed);
+		} else if (pressed(operator, x) && !lowLimit.get()) {
+			lift.set(-testSpeed);
+		} else {
+			lift.set(0); // eventually make value proportional to normal force on elevator (need encoder)
+		}
 
 		// Intake wheels
+		if (commandStyle) {
+			// Subsystem commands
+			// TODO check command functionality
+			gathering = !gathering && pressed(operator, L1);
+			if (gathering) {
+				startIntake();
+			} else {
+				stopIntake();
+			}
+		} else {
+			// Just Wheels
+			if (pressed(operator, L1)) {
+				setSpinnies(intakeSpeed);
+			} else if (pressed(operator, R1) && pressed(operator, square)) {
+				setSpinnies(dropSpeed);
+			} else if (pressed(operator, R1) && pressed(operator, circle)) {
+				setSpinnies(spitSpeed);
+			} else {
+				setSpinnies(0);
+			}
+
+			// Just gripper
+			if (held(operator, L2)) {
+				gripper.set(open);
+			} else if (held(operator, R2)) {
+				gripper.set(closed);
+			}
+		}
 
 		// Climb
-
-		// Standard drive, squared inputs, no correction
-		drive.arcadeDrive(driver.getRawAxis(LY), driver.getRawAxis(RX), true);
+		// lol what climb
 
 		Timer.delay(0.01);
 	}
 
+	// Joystick methods
+	private boolean pressed(Joystick controller, int button) {
+		return controller.getRawButton(button);
+	}
+
+	private boolean held(Joystick controller, int axis) {
+		return controller.getRawAxis(axis) != 0;
+	}
+
+	private double squaredish(double input) {
+		return input * Math.abs(input);
+	}
+
+	// Intake and elevator methods
+	private void setSpinnies(double power) {
+		leftSpinny.set(power);
+		rightSpinny.set(power);
+	}
+
+	private void startIntake() {
+		gripper.set(open);
+		setSpinnies(intakeSpeed);
+		maxSpeed = 0.3;
+	}
+
+	private void stopIntake() {
+		gripper.set(closed);
+		setSpinnies(0);
+		maxSpeed = 0.8;
+	}
 	// DANGER ZONE! EXPERIMENTAL CODE BEYOND THIS POINT!
 	// -------------------------------------------------
 
 	// Code runs periodically at all times
-	@Override
-	public void robotPeriodic() {
-	}
 
 	// Methods to be tested
 	public String getStartPosition() {
@@ -229,7 +330,7 @@ public class Robot extends IterativeRobot {
 		return auto;
 	}
 
-	public boolean canScoreScale() {
+	private boolean canScoreScale() {
 		if (startPosition != "middle") {
 			return startPosition == "left" && gameData.charAt(1) == 'L'
 					|| startPosition == "right" && gameData.charAt(1) == 'R';
@@ -238,7 +339,7 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
-	public boolean canScoreSwitch() {
+	private boolean canScoreSwitch() {
 		if (startPosition == "middle") {
 			return true;
 		} else {
