@@ -1,10 +1,3 @@
-/*----------------------------------------------------------------------------*/
-/* Copyright (c) 2017-2018 FIRST. All Rights Reserved.                        */
-/* Open Source Software - may be modified and shared by FRC teams. The code   */
-/* must be accompanied by the FIRST BSD license file in the root directory of */
-/* the project.                                                               */
-/*----------------------------------------------------------------------------*/
-
 package org.usfirst.frc.team5957.robot;
 
 import edu.wpi.first.wpilibj.ADXRS450_Gyro;
@@ -24,7 +17,6 @@ import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
 
-	// Declarations and constants
 	// Drivetrain
 	private VictorSP frontLeft, rearLeft, frontRight, rearRight;
 	private DifferentialDrive drive;
@@ -56,10 +48,11 @@ public class Robot extends IterativeRobot {
 	private final double intakeSpeed = -0.3;
 	private final double spitSpeed = 1;
 	private final double dropSpeed = 0.2;
+	private final double stallSpeed = -0.15;
 	private final boolean commandStyle = true;
 	private boolean gathering = false;
 
-	// Climber ( L O L )
+	// Climber (lol what climber)
 	// private VictorSP leftClimb, rightClimb;
 	// private final int leftClimbCh = 7;
 	// final int rightClimbCh = 8;
@@ -72,15 +65,12 @@ public class Robot extends IterativeRobot {
 	private final int sideSelectorA = 0;
 	private final int sideSelectorB = 1;
 	private final int scaleCh = 2;
-
-	// CAN Channels
 	private final int PCM = 1;
 
 	// OI
 	private Joystick driver, operator, tester;
 	private final int driverCh = 0;
 	private final int operatorCh = 1;
-
 	// PS4
 	final int x = 1;
 	final int circle = 2;
@@ -94,22 +84,25 @@ public class Robot extends IterativeRobot {
 	final int R1 = 6;
 	final int L2 = 2;
 	final int R2 = 3;
-	// Logitech
-	// N64
+	// Logitech TODO map
+	// N64 TODO buy and map
 
 	// Constants and variables
 	String gameData;
 	String startPosition;
+	final double delay = 0.005;
 
-	// PID system values
-	// Gyro
-	double gyroCurrent;
-	double gyroTarget;
-	double gyro_kP;
-	double gyro_kD;
+	// PID values
+	// Gyro TODO tune constant values
+	double gyroPCurrent, gyroPLast, gyroTarget, gyroCurrent, gyroP, gyroD, gyroOut;
+	final double gyro_kP = 0.05;
+	final double gyro_kD = 0;
 	boolean turning;
 
-	// Encoders
+	// Encoders TODO tune constant values
+	double eDifference, eCurrent, eLast, eTarget, eP, eD;
+	final double e_kP = 0.05;
+	final double e_kD = 0;
 
 	@Override
 	public void robotInit() {
@@ -132,9 +125,9 @@ public class Robot extends IterativeRobot {
 		gripper = new Solenoid(gripperCh);
 		topLimit = new DigitalInput(topCh);
 		lowLimit = new DigitalInput(lowCh);
-		gripper.set(closed);
+		gripper.set(closed); // Setting initial gripper position
 
-		// Climber
+		// Climber ( lol maybe at Portsmouth )
 		// leftClimb = new VictorSP(leftClimbCh);
 		// rightClimb = new VictorSP(rightClimbCh);
 
@@ -142,6 +135,7 @@ public class Robot extends IterativeRobot {
 		gyro = new ADXRS450_Gyro();
 		gyro.reset();
 		gyro.calibrate();
+		gyroCurrent = gyro.getAngle();
 		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
 		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
 		leftAuto = new DigitalInput(sideSelectorA);
@@ -158,10 +152,17 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void robotPeriodic() {
-		gyroCurrent = gyro.getAngle();
+		// Updates during different modes
 		if (isAutonomous()) {
+			// PID
+			gyroPLast = gyroPCurrent;
+			gyroPCurrent = gyroTarget - gyroCurrent;
+			gyroD = gyroPLast - gyroPCurrent;
+			gyroOut = (gyroPCurrent * gyro_kP) - (gyroD - gyro_kD) > maxSpeed ? maxSpeed
+					: (gyroPCurrent * gyro_kP) - (gyroD - gyro_kD);
 
 		} else if (isOperatorControl()) {
+			// Driving correction TODO test functionality
 			if (held(driver, RX)) {
 				turning = true;
 			} else {
@@ -169,6 +170,8 @@ public class Robot extends IterativeRobot {
 				gyroTarget = gyro.getAngle();
 			}
 		}
+
+		Timer.delay(delay);
 	}
 
 	@Override
@@ -210,18 +213,18 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void autonomousPeriodic() {
-		Timer.delay(0.01);
+		Timer.delay(delay);
 	}
 
 	@Override
 	public void teleopPeriodic() {
 		// Drivetrain power values
-		double speedAxisVal = squaredish(driver.getRawAxis(LY));
+		double speedAxisVal = squaredish(driver.getRawAxis(LY)); // Squared controller
 		double rotationAxisVal = squaredish(driver.getRawAxis(RX));
 		double speed = maxSpeed * speedAxisVal;
-		double rotation = turning ? maxSpeed * rotationAxisVal : ((gyroTarget - gyroCurrent) * gyro_kP);
+		double rotation = turning ? maxSpeed * rotationAxisVal : ((gyroTarget - gyroPCurrent) * gyro_kP);
 
-		// Drivetrain
+		// Drivetrain TODO test
 		if (pressed(driver, L1)) {
 			gear.set(lowGear);
 			maxSpeed = 0.6;
@@ -229,10 +232,9 @@ public class Robot extends IterativeRobot {
 			gear.set(highGear);
 			maxSpeed = 1;
 		}
-
 		drive.arcadeDrive(speed, rotation);
 
-		// Lift logic
+		// Lift logic TODO test
 		if (pressed(operator, triangle) && !topLimit.get()) {
 			lift.set(testSpeed);
 		} else if (pressed(operator, x) && !lowLimit.get()) {
@@ -241,10 +243,9 @@ public class Robot extends IterativeRobot {
 			lift.set(0); // eventually make value proportional to normal force on elevator (need encoder)
 		}
 
-		// Intake wheels
+		// Intake wheels TODO test
 		if (commandStyle) {
 			// Subsystem commands
-			// TODO check command functionality
 			gathering = !gathering && pressed(operator, L1);
 			if (gathering) {
 				startIntake();
@@ -271,23 +272,25 @@ public class Robot extends IterativeRobot {
 			}
 		}
 
-		// Climb
-		// lol what climb
+		// Climb ( L O L )
 
-		Timer.delay(0.01);
+		Timer.delay(delay);
 	}
 
 	// Joystick methods
+	// Checks button press
 	private boolean pressed(Joystick controller, int button) {
 		return controller.getRawButton(button);
 	}
 
+	// Checks axis != 0
 	private boolean held(Joystick controller, int axis) {
-		return controller.getRawAxis(axis) != 0;
+		return Math.abs(controller.getRawAxis(axis)) > 0.01;
 	}
 
+	// input ^ 4 while preserving sign
 	private double squaredish(double input) {
-		return input * Math.abs(input);
+		return input * Math.pow((Math.abs(input)), 2);
 	}
 
 	// Intake and elevator methods
@@ -296,29 +299,23 @@ public class Robot extends IterativeRobot {
 		rightSpinny.set(power);
 	}
 
+	// open gripper, start spinnies at intake speed, lower max drive power
 	private void startIntake() {
 		gripper.set(open);
 		setSpinnies(intakeSpeed);
 		maxSpeed = 0.3;
 	}
 
+	// close grippers, stop spinnies, return max power to normal
 	private void stopIntake() {
 		gripper.set(closed);
-		setSpinnies(0);
+		setSpinnies(stallSpeed);
 		maxSpeed = 0.8;
 	}
-	// DANGER ZONE! EXPERIMENTAL CODE BEYOND THIS POINT!
-	// -------------------------------------------------
 
-	// Code runs periodically at all times
-
-	// Methods to be tested
+	// Autonomous methods
+	// gets start position from autonomous switch
 	public String getStartPosition() {
-		// 3-position switch
-		// Left position DIO0 = true, DIO1 = false
-		// Right position DIO0 = false, DIO1 = true
-		// Middle potition DIO0 = DIO1 = true
-		// returns auto to run based on match between position switch and game data
 		String auto;
 		if (leftAuto.get() && !rightAuto.get()) {
 			auto = "left";
@@ -330,6 +327,7 @@ public class Robot extends IterativeRobot {
 		return auto;
 	}
 
+	// Checks if scale is possible
 	private boolean canScoreScale() {
 		if (startPosition != "middle") {
 			return startPosition == "left" && gameData.charAt(1) == 'L'
@@ -339,6 +337,7 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
+	// Checks if switch is possible
 	private boolean canScoreSwitch() {
 		if (startPosition == "middle") {
 			return true;
@@ -408,7 +407,7 @@ public class Robot extends IterativeRobot {
 				drive.arcadeDrive(driver.getRawAxis(LY), driver.getRawAxis(RX), true);
 			}
 
-			Timer.delay(0.01);
+			Timer.delay(delay);
 
 			// TODO Figure out where these values show up in the SmartDashboard
 			SmartDashboard.putNumber("LeftEncoder", distL);
