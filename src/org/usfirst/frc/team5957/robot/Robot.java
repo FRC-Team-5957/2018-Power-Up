@@ -8,27 +8,15 @@ import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Solenoid;
-import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.VictorSP;
-import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 import edu.wpi.first.wpilibj.livewindow.LiveWindow;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
 
 	// Drivetrain
-	private VictorSP frontLeft, rearLeft, frontRight, rearRight;
-	private DifferentialDrive drive;
-	private Solenoid gear;
-	private final boolean highGear = true;
-	private final boolean lowGear = false;
-	private final int frontLeftCh = 0;
-	private final int rearLeftCh = 1;
-	private final int frontRightCh = 2;
-	private final int rearRightCh = 3;
-	private final int gearCh = 0;
-	private double maxSpeed = 0.6;
+	ShiftingDrivetrain drive = new ShiftingDrivetrain(0, 1, 2, 3, 0);
 
 	// Elevator and intake
 	private VictorSP leftSpinny, rightSpinny, lift;
@@ -68,7 +56,7 @@ public class Robot extends IterativeRobot {
 	private final int PCM = 1;
 
 	// OI
-	private Joystick driver, operator, tester;
+	private Joystick driver, operator;
 	private final int driverCh = 0;
 	private final int operatorCh = 1;
 	// PS4
@@ -106,16 +94,9 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void robotInit() {
-		// Instantiation
 		// Drivetrain
-		frontLeft = new VictorSP(frontLeftCh);
-		rearLeft = new VictorSP(rearLeftCh);
-		frontRight = new VictorSP(frontRightCh);
-		rearRight = new VictorSP(rearRightCh);
-		drive = new DifferentialDrive(new SpeedControllerGroup(frontLeft, rearLeft),
-				new SpeedControllerGroup(frontRight, rearRight));
-		gear = new Solenoid(gearCh);
-		gear.set(lowGear); // Setting initial gear
+		drive.setMaxSpeed(0.6);
+		drive.setMaxRotation(0.8);
 
 		// Lift and gripper
 		lift = new VictorSP(liftCh);
@@ -158,8 +139,7 @@ public class Robot extends IterativeRobot {
 			gyroPLast = gyroPCurrent;
 			gyroPCurrent = gyroTarget - gyroCurrent;
 			gyroD = gyroPLast - gyroPCurrent;
-			gyroOut = (gyroPCurrent * gyro_kP) - (gyroD - gyro_kD) > maxSpeed ? maxSpeed
-					: (gyroPCurrent * gyro_kP) - (gyroD - gyro_kD);
+			gyroOut = (gyroPCurrent * gyro_kP) - (gyroD - gyro_kD);
 
 		} else if (isOperatorControl()) {
 			// Driving correction TODO test functionality
@@ -218,21 +198,17 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void teleopPeriodic() {
-		// Drivetrain power values
-		double speedAxisVal = squaredish(driver.getRawAxis(LY)); // Squared controller
-		double rotationAxisVal = squaredish(driver.getRawAxis(RX));
-		double speed = maxSpeed * speedAxisVal;
-		double rotation = turning ? maxSpeed * rotationAxisVal : ((gyroTarget - gyroPCurrent) * gyro_kP);
+
+		double speed = -driver.getRawAxis(1);
+		double rotation = driver.getRawAxis(4);
 
 		// Drivetrain TODO test
 		if (pressed(driver, L1)) {
-			gear.set(lowGear);
-			maxSpeed = 0.6;
+			drive.setLowGear();
 		} else if (pressed(driver, R1)) {
-			gear.set(highGear);
-			maxSpeed = 1;
+			drive.setHighGear();
 		}
-		drive.arcadeDrive(speed, rotation);
+		drive.drive(speed, rotation);
 
 		// Lift logic TODO test
 		if (pressed(operator, triangle) && !topLimit.get()) {
@@ -288,11 +264,6 @@ public class Robot extends IterativeRobot {
 		return Math.abs(controller.getRawAxis(axis)) > 0.01;
 	}
 
-	// input ^ 4 while preserving sign
-	private double squaredish(double input) {
-		return input * Math.pow((Math.abs(input)), 2);
-	}
-
 	// Intake and elevator methods
 	private void setSpinnies(double power) {
 		leftSpinny.set(power);
@@ -303,14 +274,14 @@ public class Robot extends IterativeRobot {
 	private void startIntake() {
 		gripper.set(open);
 		setSpinnies(intakeSpeed);
-		maxSpeed = 0.3;
+		drive.setMaxSpeed(0.4);
 	}
 
 	// close grippers, stop spinnies, return max power to normal
 	private void stopIntake() {
 		gripper.set(closed);
 		setSpinnies(stallSpeed);
-		maxSpeed = 0.8;
+		drive.setMaxSpeed(0.8);
 	}
 
 	// Autonomous methods
@@ -372,48 +343,19 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void testPeriodic() {
-		if (testPeriodicFunctions) {
-			// Write testPeriodic code in this loop
 
-			// Encoder value testing
-			countL = leftEnc.get();
-			countR = rightEnc.get();
-			distL = leftEnc.getDistance(); // returns number of rotations of wheel shaft (adjusted by the k4X in the
-											// constructor)
-			distR = rightEnc.getRaw(); // returns number of rotations of the encoder shaft
-			stoppedL = leftEnc.getStopped();
-			stoppedR = rightEnc.getStopped();
+		// Encoder value testing
+		countL = leftEnc.get();
+		countR = rightEnc.get();
+		distL = leftEnc.getDistance(); // returns number of rotations of wheel shaft (adjusted by the k4X in the
+										// constructor)
+		distR = rightEnc.getRaw(); // returns number of rotations of the encoder shaft
+		stoppedL = leftEnc.getStopped();
+		stoppedR = rightEnc.getStopped();
 
-			// Logic for switching between driving modes (GTA-style or arcade drive)
-			// TODO: Decide which mode driver likes better
-			if (tester.getRawButton(GTA) && !tester.getRawButton(arcade)) {
-				gtaActive = true;
-			}
-			if (!tester.getRawButton(GTA) && tester.getRawButton(arcade)) {
-				gtaActive = true;
-			}
-
-			if (gtaActive) {
-
-				if (driver.getRawAxis(R2) != 0 && driver.getRawAxis(L2) == 0) {
-					drive.arcadeDrive(driver.getRawAxis(R2), driver.getRawAxis(LX), true);
-				} else if (driver.getRawAxis(L2) != 0 && driver.getRawAxis(R2) == 0) {
-					drive.arcadeDrive(-driver.getRawAxis(L2), driver.getRawAxis(LX), true);
-				} else {
-					drive.arcadeDrive(0, driver.getRawAxis(LX));
-				}
-
-			} else {
-				drive.arcadeDrive(driver.getRawAxis(LY), driver.getRawAxis(RX), true);
-			}
-
-			Timer.delay(delay);
-
-			// TODO Figure out where these values show up in the SmartDashboard
-			SmartDashboard.putNumber("LeftEncoder", distL);
-			SmartDashboard.putNumber("RightEncoder", distR);
-			LiveWindow.add(leftEnc);
-			LiveWindow.add(rightEnc);
-		}
+		SmartDashboard.putNumber("LeftEncoder", distL);
+		SmartDashboard.putNumber("RightEncoder", distR);
+		LiveWindow.add(leftEnc);
+		LiveWindow.add(rightEnc);
 	}
 }
