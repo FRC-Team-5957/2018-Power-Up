@@ -9,7 +9,7 @@ public class Gripper {
 	private static final boolean closed = true;
 	private static final boolean open = false;
 	private static final double intakeSpeed = -0.75;
-	private static final double stallSpeed = -0.1;
+	private static final double stallSpeed = -0.15;
 	private static final double dropSpeed = -0.2;
 	private static final double ejectSpeed = 0.6;
 

@@ -25,7 +25,7 @@ public class ShiftingDrivetrain {
 		this.drive = new DifferentialDrive(new SpeedControllerGroup(this.frontLeft, this.rearLeft),
 				new SpeedControllerGroup(this.frontRight, this.rearRight));
 		this.gear = new DoubleSolenoid(PCM, D1, D2);
-		this.gear.set(DoubleSolenoid.Value.kForward);
+		this.gear.set(DoubleSolenoid.Value.kReverse);
 		this.gyro = new ADXRS450_Gyro();
 		this.gyro.reset();
 		this.gyro.calibrate();
@@ -40,7 +40,11 @@ public class ShiftingDrivetrain {
 	}
 
 	public void drive(double speedVal, double rotationVal) {
-		drive.arcadeDrive(maxSpeed * speedVal, maxRotation * rotationVal);
+		drive.arcadeDrive(maxSpeed * getAdjusted(speedVal), maxRotation * getAdjusted(rotationVal));
+	}
+
+	private double getAdjusted(double speed) {
+		return speed * Math.pow(Math.abs(speed), 2);
 	}
 
 	public void deadStop() {
