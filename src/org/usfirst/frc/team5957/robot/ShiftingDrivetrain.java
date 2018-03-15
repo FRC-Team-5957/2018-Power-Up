@@ -29,13 +29,6 @@ public class ShiftingDrivetrain {
 		this.gyro = new ADXRS450_Gyro();
 		this.gyro.reset();
 		this.gyro.calibrate();
-		/*
-		 * We can figure this out later, probably will have to do it manually for drive
-		 * but ill talk to Preston - Andrei
-		 */
-		// this.PIDControl = new PIDController(0.1, 0.001, 0.0, this.gyro, output);
-		// this.PIDControl.enable();
-		// this.PIDControl.setOutputRange(-0.6, 0.6);
 
 	}
 
@@ -48,7 +41,7 @@ public class ShiftingDrivetrain {
 	}
 
 	public void deadStop() {
-		drive(0, 0);
+		drive(-1, 0);
 	}
 
 	public void setMaxSpeed(double speed) {
@@ -72,6 +65,9 @@ public class ShiftingDrivetrain {
 		gyro.calibrate();
 	}
 
+	public double getAngle() {
+		return gyro.getAngle();
+	}
 	// public double getPIDSource() {
 	// return this.gyro.getAngle();
 	// }

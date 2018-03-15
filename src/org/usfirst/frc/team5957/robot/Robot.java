@@ -8,6 +8,7 @@ import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
 
@@ -26,11 +27,15 @@ public class Robot extends IterativeRobot {
 	Encoder leftEnc, rightEnc;
 	DigitalInput leftAuto, rightAuto;
 	Compressor compressor;
-	final int sideSelectorA = 6;
-	final int sideSelectorB = 7;
+	final int sideSelectorA = 0;
+	final int sideSelectorB = 1;
 
 	Joystick driver = new Joystick(0);
 	Joystick operator = new Joystick(1);
+
+	double limitedSpeed = 0;
+	double limit = 1 / 15;
+	boolean rampingEnabled = false;
 
 	@Override
 	public void robotInit() {
@@ -40,19 +45,22 @@ public class Robot extends IterativeRobot {
 		drive.setMaxRotation(0.77);
 
 		// Sensors and subsystems
-		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
-		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
+		leftEnc = new Encoder(3, 2, false);
+		rightEnc = new Encoder(4, 5, false);
 		leftAuto = new DigitalInput(sideSelectorA);
 		rightAuto = new DigitalInput(sideSelectorB);
 		compressor = new Compressor(PCM);
 		compressor.setClosedLoopControl(true);
 		CameraServer.getInstance().startAutomaticCapture();
-		// Constants and Variables
 	}
 
 	@Override
 	public void robotPeriodic() {
-		// Updates during different modes
+		SmartDashboard.putNumber("Left Encoder Distance", leftEnc.getDistance());
+		SmartDashboard.putNumber("RightEncoder Distance", rightEnc.getDistance());
+		SmartDashboard.putNumber("Left Encoder Get", leftEnc.get());
+		SmartDashboard.putNumber("RightEncoder Get", rightEnc.get());
+		SmartDashboard.putNumber("Gyro Angle", drive.getAngle());
 	}
 
 	@Override
@@ -60,11 +68,18 @@ public class Robot extends IterativeRobot {
 		time.reset();
 		time.start();
 		drive.setMaxSpeed(0.7);
+		leftEnc.reset();
 		gameData = DriverStation.getInstance().getGameSpecificMessage();
 		startPosition = getStartPosition();
+		while (time.get() < 2) {
 
-		while (time.get() < 3.5) {
-			drive.drive(1, 0);
+			if (time.get() == 0.25) {
+				drive.setLowGear();
+			}
+			drive.drive(1, -drive.getAngle() * 0.1);
+		}
+		while (time.get() > 2.05 && time.get() < 3) {
+			drive.deadStop();
 		}
 
 		// if (startPosition == gameData.charAt(0)) {
@@ -112,10 +127,14 @@ public class Robot extends IterativeRobot {
 		// gripper.eject();
 		// }
 
-	}
+		// *************************************************************************************************
+		// TODO list
+		// math and PID tune for distances (encoders) (value adjustment to get 256)
+		// PID tune for gyro and turnAngle
+		// timing for lift
+		// output time
+		// *************************************************************************************************
 
-	@Override
-	public void autonomousPeriodic() {
 	}
 
 	@Override
@@ -127,8 +146,20 @@ public class Robot extends IterativeRobot {
 	@Override
 	public void teleopPeriodic() {
 
-		double speed = -driver.getRawAxis(ControlMap.speedAxis);
 		double rotation = driver.getRawAxis(ControlMap.rotationAxis);
+
+		// Drive Ramping (rate-limit filter)
+		if (rampingEnabled) {
+			double speedVal = -driver.getRawAxis(ControlMap.speedAxis);
+			double change = speedVal - limitedSpeed;
+			if (change > limit)
+				change = limit;
+			else if (change < -limit)
+				change = -limit;
+			limitedSpeed += change;
+		} else {
+			limitedSpeed = -driver.getRawAxis(ControlMap.speedAxis);
+		}
 
 		// Drive gears and powers
 		if (pressed(driver, ControlMap.lowGear)) {
@@ -136,7 +167,7 @@ public class Robot extends IterativeRobot {
 		} else if (pressed(driver, ControlMap.highGear)) {
 			drive.setHighGear();
 		}
-		drive.drive(speed, rotation);
+		drive.drive(limitedSpeed, rotation);
 
 		// Lift
 		if (operator.getRawAxis(ControlMap.lift) == -1) {
