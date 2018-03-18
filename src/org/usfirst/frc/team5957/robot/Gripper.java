@@ -11,7 +11,7 @@ public class Gripper {
 	private static final double intakeSpeed = -0.75;
 	private static final double stallSpeed = -0.15;
 	private static final double dropSpeed = -0.2;
-	private static final double ejectSpeed = 0.6;
+	private static final double ejectSpeed = 0.75;
 
 	public Gripper(int leftMotor, int rightMotor, int PCM, int DS1) {
 		leftSpinny = new VictorSP(leftMotor);

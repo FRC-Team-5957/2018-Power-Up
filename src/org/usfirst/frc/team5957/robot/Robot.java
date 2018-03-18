@@ -1,5 +1,6 @@
 package org.usfirst.frc.team5957.robot;
 
+import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DigitalInput;
@@ -8,6 +9,7 @@ import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends IterativeRobot {
 
@@ -26,33 +28,42 @@ public class Robot extends IterativeRobot {
 	Encoder leftEnc, rightEnc;
 	DigitalInput leftAuto, rightAuto;
 	Compressor compressor;
-	final int sideSelectorA = 6;
-	final int sideSelectorB = 7;
+	final int sideSelectorA = 0;
+	final int sideSelectorB = 1;
+	ADXRS450_Gyro gyro = new ADXRS450_Gyro();
 
 	Joystick driver = new Joystick(0);
 	Joystick operator = new Joystick(1);
 
+	double limitedSpeed = 0;
+	double limit = 1 / 15;
+	boolean rampingEnabled = false;
+
 	@Override
 	public void robotInit() {
 		// Drivetrain
-		drive.reset();
 		drive.setMaxSpeed(0.87);
 		drive.setMaxRotation(0.77);
+		gyro.reset();
+		gyro.calibrate();
 
 		// Sensors and subsystems
-		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
-		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
-		leftAuto = new DigitalInput(sideSelectorA);
-		rightAuto = new DigitalInput(sideSelectorB);
-		compressor = new Compressor(PCM);
+		leftEnc = new Encoder(3, 2, false);
+		rightEnc = new Encoder(4, 5, false);
+		leftAuto = new DigitalInput(1); // LEft
+		rightAuto = new DigitalInput(0); // Right
+		compressor = new Compressor(1);
 		compressor.setClosedLoopControl(true);
-		CameraServer.getInstance().startAutomaticCapture();
-		// Constants and Variables
+		CameraServer.getInstance().startAutomaticCapture(0);
+		CameraServer.getInstance().startAutomaticCapture(1);
 	}
 
 	@Override
 	public void robotPeriodic() {
-		// Updates during different modes
+		SmartDashboard.putNumber("Left Encoder Distance", leftEnc.getDistance());
+		SmartDashboard.putNumber("RightEncoder Distance", rightEnc.getDistance());
+		SmartDashboard.putNumber("Left Encoder Get", leftEnc.get());
+		SmartDashboard.putNumber("RightEncoder Get", rightEnc.get());
 	}
 
 	@Override
@@ -60,11 +71,64 @@ public class Robot extends IterativeRobot {
 		time.reset();
 		time.start();
 		drive.setMaxSpeed(0.7);
+		leftEnc.reset();
 		gameData = DriverStation.getInstance().getGameSpecificMessage();
 		startPosition = getStartPosition();
+		if (startPosition == 'C') {
+			// Middle switch auto
+			// go forward, turn based on side, go forward, turn to 0 and lift, go forward,
+			// spit
 
-		while (time.get() < 3.5) {
-			drive.drive(1, 0);
+			// VAPOR: go forward and raise lift for scale
+			while (time.get() < 2) {
+				drive.drive(1, -gyro.getAngle() * 0.1);
+				if (time.get() < 1.95) {
+					lift.climb();
+				} else {
+					lift.stall();
+				}
+			}
+
+			// Center switch attempt time
+			// while (time.get() < 1.5) {
+			// drive.drive(1, -gyro.getAngle() * 0.1);
+			// }
+			// System.out.println("Went forward");
+			// while (time.get() > 1.5 && time.get() < 1.7) {
+			// drive.drive(-1, 0);
+			// Timer.delay(0.02);
+			// }
+			// System.out.println("Braked");
+			//
+			// double target = 90;
+			// int count = 0;
+			// while (count < 25) {
+			// double error = target - gyro.getAngle();
+			// System.out.println(gyro.getAngle());
+			// if (error < 2) {
+			// count++;
+			// }
+			// drive.drive(0, target * 0.05);
+			// }
+			// System.out.println("done turning");
+			//
+		} else {
+			// go forward, if i have it, spit the cube
+			while (time.get() < 2) {
+				if (time.get() == 0.2) {
+					drive.setLowGear();
+				}
+				drive.drive(1, -gyro.getAngle() * 0.1);
+				if (time.get() > 0.5)
+					lift.climb();
+			}
+			lift.stall();
+			if (startPosition == gameData.charAt(0)) {
+				gripper.eject();
+				System.out.println("Ejecting");
+				Timer.delay(0.5);
+			}
+
 		}
 
 		// if (startPosition == gameData.charAt(0)) {
@@ -112,23 +176,44 @@ public class Robot extends IterativeRobot {
 		// gripper.eject();
 		// }
 
+		// *************************************************************************************************
+		// TODO list
+		// math and PID tune for distances (encoders) (value adjustment to get 256)
+		// PID tune for gyro and turnAngle
+		// timing for lift
+		// output time
+		// *************************************************************************************************
+
 	}
 
 	@Override
 	public void autonomousPeriodic() {
+		System.out.println(gyro.getAngle());
 	}
 
 	@Override
 	public void teleopInit() {
-		drive.setMaxSpeed(0.87);
-		drive.setMaxRotation(0.9);
+		drive.setMaxSpeed(0.95);
+		drive.setMaxRotation(0.82);
 	}
 
 	@Override
 	public void teleopPeriodic() {
 
-		double speed = -driver.getRawAxis(ControlMap.speedAxis);
 		double rotation = driver.getRawAxis(ControlMap.rotationAxis);
+
+		// Drive Ramping (rate-limit filter)
+		if (rampingEnabled) {
+			double speedVal = -driver.getRawAxis(ControlMap.speedAxis);
+			double change = speedVal - limitedSpeed;
+			if (change > limit)
+				change = limit;
+			else if (change < -limit)
+				change = -limit;
+			limitedSpeed += change;
+		} else {
+			limitedSpeed = -driver.getRawAxis(ControlMap.speedAxis);
+		}
 
 		// Drive gears and powers
 		if (pressed(driver, ControlMap.lowGear)) {
@@ -136,7 +221,7 @@ public class Robot extends IterativeRobot {
 		} else if (pressed(driver, ControlMap.highGear)) {
 			drive.setHighGear();
 		}
-		drive.drive(speed, rotation);
+		drive.drive(limitedSpeed, rotation);
 
 		// Lift
 		if (operator.getRawAxis(ControlMap.lift) == -1) {
@@ -159,11 +244,20 @@ public class Robot extends IterativeRobot {
 		// Gripper
 		if (pressed(operator, 2)) {
 			gripper.open();
-			drive.setMaxSpeed(0.5);
+			drive.setMaxSpeed(0.65);
 		} else {
 			gripper.close();
-			drive.setMaxSpeed(0.8);
+			drive.setMaxSpeed(0.95);
 		}
+	}
+
+	@Override
+	public void disabledInit() {
+		gripper.close();
+	}
+
+	@Override
+	public void disabledPeriodic() {
 	}
 
 	private boolean pressed(Joystick controller, int button) {

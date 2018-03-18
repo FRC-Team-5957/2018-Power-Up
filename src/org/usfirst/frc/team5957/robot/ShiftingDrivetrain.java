@@ -11,7 +11,7 @@ public class ShiftingDrivetrain {
 	private VictorSP frontLeft, rearLeft, frontRight, rearRight;
 	private DifferentialDrive drive;
 	private DoubleSolenoid gear;
-	private ADXRS450_Gyro gyro;
+	// private ADXRS450_Gyro gyro;
 	private double maxSpeed = 0.6;
 	private double maxRotation = 1;
 	// private PIDController PIDControl;
@@ -26,16 +26,9 @@ public class ShiftingDrivetrain {
 				new SpeedControllerGroup(this.frontRight, this.rearRight));
 		this.gear = new DoubleSolenoid(PCM, D1, D2);
 		this.gear.set(DoubleSolenoid.Value.kReverse);
-		this.gyro = new ADXRS450_Gyro();
-		this.gyro.reset();
-		this.gyro.calibrate();
-		/*
-		 * We can figure this out later, probably will have to do it manually for drive
-		 * but ill talk to Preston - Andrei
-		 */
-		// this.PIDControl = new PIDController(0.1, 0.001, 0.0, this.gyro, output);
-		// this.PIDControl.enable();
-		// this.PIDControl.setOutputRange(-0.6, 0.6);
+		// this.gyro = new ADXRS450_Gyro();
+		// this.gyro.reset();
+		// this.gyro.calibrate();
 
 	}
 
@@ -48,7 +41,7 @@ public class ShiftingDrivetrain {
 	}
 
 	public void deadStop() {
-		drive(0, 0);
+		drive(-1, 0);
 	}
 
 	public void setMaxSpeed(double speed) {
@@ -57,7 +50,14 @@ public class ShiftingDrivetrain {
 
 	public void setMaxRotation(double rotation) {
 		maxRotation = rotation;
-	}
+	}	// public void reset() {
+	// gyro.reset();
+	// gyro.calibrate();
+	// }
+	//
+	// public double getAngle() {
+	// return gyro.getAngle();
+	// }
 
 	public void setHighGear() {
 		gear.set(DoubleSolenoid.Value.kForward);
@@ -67,10 +67,6 @@ public class ShiftingDrivetrain {
 		gear.set(DoubleSolenoid.Value.kReverse);
 	}
 
-	public void reset() {
-		gyro.reset();
-		gyro.calibrate();
-	}
 
 	// public double getPIDSource() {
 	// return this.gyro.getAngle();

@@ -5,9 +5,9 @@ import edu.wpi.first.wpilibj.Spark;
 public class Lift {
 	private Spark lift;
 	// private Encoder encoder;
-	private static final double climbSpeed = 0.7;
-	private static final double descendSpeed = -0.4;
-	private static final double stallSpeed = 0.2;
+	private static final double climbSpeed = 0.9;
+	private static final double descendSpeed = -0.3;
+	private static final double stallSpeed = 0.22;
 
 	public Lift(int liftMotor) {
 		lift = new Spark(liftMotor);
