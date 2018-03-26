@@ -30,7 +30,7 @@ public class ShiftingDrivetrain {
 	}
 
 	public void deadStop() {
-		drive(-1, 0);
+		drive.stopMotor();
 	}
 
 	public void setMaxSpeed(double speed) {
