@@ -15,7 +15,7 @@ import edu.wpi.first.wpilibj.VictorSP;
 import edu.wpi.first.wpilibj.drive.DifferentialDrive;
 
 public class Robot extends IterativeRobot {
-	
+
 	// Shifting Drivetrain lol
 	VictorSP frontLeft = new VictorSP(0);
 	VictorSP rearLeft = new VictorSP(1);
@@ -46,31 +46,33 @@ public class Robot extends IterativeRobot {
 
 	Joystick driver = new Joystick(0);
 	Joystick operator = new Joystick(1);
-	
+
 	// PD values
-		final double kP = 0.1;
-		final double kD = 0.55;
-		double D = 0;
-		double PCurrent = 0;
-		double PLast = 0;
-		double angle = 0;
-		double target = 0;
+	final double kP = 0.1;
+	final double kD = 0.55;
+	double D = 0;
+	double PCurrent = 0;
+	double PLast = 0;
+	double angle = 0;
+	double target = 0;
 
-		// Autonomous flags
-		int action = 1;
-		boolean turningAfter = true;
+	// Autonomous flags
+	int action = 1;
+	boolean turningAfter = true;
 
-		// Drive values
-		final double kBrakePower = -0.3;
-		final double kBrakeTime = 0.25;
+	// Drive values
+	final double kBrakePower = -0.3;
+	final double kBrakeTime = 0.25;
+	double maxSpeed = 0.6;
+	double maxRotation = 1;
 
 	@Override
 	public void robotInit() {
 		// Drivetrain
 		drive.setSafetyEnabled(false);
-//		drive.reset();
-//		drive.setMaxSpeed(0.87);
-//		drive.setMaxRotation(0.77);
+		// drive.reset();
+		// drive.setMaxSpeed(0.87);
+		// drive.setMaxRotation(0.77);
 
 		// Sensors and subsystems
 		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
@@ -123,18 +125,52 @@ public class Robot extends IterativeRobot {
 			timedDrive(0.5);
 			System.out.println("Finished Action " + action + ": forward movement for 0.5s");
 			turningAfter = false;
+		} else if (action == 4) {
+			timedLift(1); // TODO: change for max height on lift
+			System.out.println("Finished Action " + action + ": raise lift for 1s");
+			System.out.println("Ejecting");
+			gripper.eject();
 		}
 	}
 
 	@Override
 	public void autonomousPeriodic() {
+		if ((Math.abs(PCurrent) > 5 || PCurrent == 0) && turningAfter) {
+			angle = gyro.getAngle();
+			PLast = PCurrent;
+			PCurrent = target - angle;
+			D = PLast - PCurrent;
+			double output = (PCurrent * kP) - (D * kD);
+			drive.arcadeDrive(0, output);
+		} else {
+			action++;
+			autonomousInit();
+		}
 
+	}
+
+	// Auto methods
+	public void brake() {
+		drive.arcadeDrive(kBrakePower, 0);
+		Timer.delay(kBrakeTime);
+	}
+
+	public void timedDrive(double time) {
+		drive.arcadeDrive(1, 0);
+		Timer.delay(time);
+		brake();
+	}
+
+	public void timedLift(double time) {
+		lift.climb();
+		Timer.delay(time);
+		lift.stall();
 	}
 
 	@Override
 	public void teleopInit() {
-//		drive.setMaxSpeed(0.87);
-//		drive.setMaxRotation(0.9);
+		maxSpeed = 0.87;
+		maxRotation = 0.9;
 	}
 
 	@Override
@@ -149,8 +185,9 @@ public class Robot extends IterativeRobot {
 		} else if (pressed(driver, ControlMap.highGear)) {
 			setHighGear();
 		}
-//		drive.drive(speed, rotation);
-		drive.arcadeDrive(speed, rotation, true);
+		// drive.drive(speed, rotation);
+		drive.arcadeDrive(maxSpeed * getAdjusted(speed), maxRotation * getAdjusted(rotation));
+
 		// Lift
 		if (operator.getRawAxis(ControlMap.lift) == -1) {
 			lift.climb();
@@ -192,14 +229,14 @@ public class Robot extends IterativeRobot {
 		}
 		return auto;
 	}
-	
+
 	public void resetPID() {
 		D = 0;
 		PCurrent = 0;
 		PLast = 0;
 		angle = 0;
 	}
-	
+
 	public void setHighGear() {
 		gear.set(DoubleSolenoid.Value.kForward);
 	}
@@ -207,16 +244,8 @@ public class Robot extends IterativeRobot {
 	public void setLowGear() {
 		gear.set(DoubleSolenoid.Value.kReverse);
 	}
-	
-	// Drive methods (autonomous)
-		public void brake() {
-			drive.arcadeDrive(kBrakePower, 0);
-			Timer.delay(kBrakeTime);
-		}
 
-		public void timedDrive(double time) {
-			drive.arcadeDrive(1, 0);
-			Timer.delay(time);
-			brake();
-		}
+	private double getAdjusted(double speed) {
+		return speed * Math.pow(Math.abs(speed), 2);
+	}
 }
