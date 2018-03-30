@@ -4,11 +4,11 @@ import edu.wpi.first.wpilibj.ADXRS450_Gyro;
 import edu.wpi.first.wpilibj.CameraServer;
 import edu.wpi.first.wpilibj.Compressor;
 import edu.wpi.first.wpilibj.DigitalInput;
-import edu.wpi.first.wpilibj.DoubleSolenoid;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.Encoder;
 import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.SpeedControllerGroup;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.VictorSP;
@@ -25,10 +25,9 @@ public class Robot extends IterativeRobot {
 			new SpeedControllerGroup(frontRight, rearRight));
 	ADXRS450_Gyro gyro = new ADXRS450_Gyro();
 
-	private DoubleSolenoid gear;
-
 	// Subsystems
 	final int PCM = 1;
+	private Solenoid gear = new Solenoid(PCM, 1);
 	Gripper gripper = new Gripper(4, 5, PCM, 0);
 	Lift lift = new Lift(6);
 
@@ -36,20 +35,24 @@ public class Robot extends IterativeRobot {
 	char startPosition;
 	String gameData;
 	Timer time = new Timer();
+	boolean Scale = false;
+	boolean Switch = true;
 
+	char switchPos;
+	char scalePos;
 	// Sensors and compressor
 	Encoder leftEnc, rightEnc;
-	DigitalInput leftAuto, rightAuto;
+	DigitalInput leftAuto, rightAuto, priority;
 	Compressor compressor;
-	final int sideSelectorA = 6;
-	final int sideSelectorB = 7;
+	final int sideSelectorA = 0;
+	final int sideSelectorB = 1;
 
 	Joystick driver = new Joystick(0);
 	Joystick operator = new Joystick(1);
 
 	// PD values
-	final double kP = 0.1;
-	final double kD = 0.55;
+	final double kP = 0.16;
+	final double kD = 0.37;
 	double D = 0;
 	double PCurrent = 0;
 	double PLast = 0;
@@ -63,7 +66,7 @@ public class Robot extends IterativeRobot {
 	// Drive values
 	final double kBrakePower = -0.3;
 	final double kBrakeTime = 0.25;
-	double maxSpeed = 0.6;
+	double maxSpeed = 1;
 	double maxRotation = 1;
 
 	@Override
@@ -77,13 +80,18 @@ public class Robot extends IterativeRobot {
 		// Sensors and subsystems
 		leftEnc = new Encoder(2, 3, false, Encoder.EncodingType.k1X);
 		rightEnc = new Encoder(4, 5, false, Encoder.EncodingType.k1X);
-		leftAuto = new DigitalInput(sideSelectorA);
-		rightAuto = new DigitalInput(sideSelectorB);
+		rightAuto = new DigitalInput(sideSelectorA);
+		leftAuto = new DigitalInput(sideSelectorB);
+		priority = new DigitalInput(9);
 		compressor = new Compressor(PCM);
 		compressor.setClosedLoopControl(true);
 		CameraServer.getInstance().startAutomaticCapture(0);
 		CameraServer.getInstance().startAutomaticCapture(1);
+
 		// Constants and Variables
+		startPosition = getStartPosition();
+		gameData = DriverStation.getInstance().getGameSpecificMessage();
+
 	}
 
 	@Override
@@ -93,43 +101,22 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void autonomousInit() {
-		String gameData = DriverStation.getInstance().getGameSpecificMessage();
-		char switchPos = gameData.charAt(0);
-		// char scalePos = gameData.charAt(1);
 		drive.setMaxOutput(0.7);
-		if (switchPos == 'L') {
-			target = -55;
-		} else {
-			target = 42;
-		}
-		System.out.println("Finished Initialization: get game data and set autonomous values");
-
-		if (action == 1) { // Initial forward
-			gyro.reset();
-			timedDrive(0.45);
-			turningAfter = true;
-			System.out.println("Finished Action " + action + ": forward movement for 0.45s");
-		} else if (action == 2) { // Side movement
-			System.out.println("Finished turn to" + target + " degrees");
-			if (switchPos == 'L') {
-				timedDrive(1);
-			} else {
-				timedDrive(0.85);
+		if (priority.get() == Switch) { // Priority is switch
+			if (startPosition == 'C') { // Starting from the center
+				centerSwitchAuto();
+			} else { // Starting from the left or right
+				switchAuto();
 			}
-			target = 0;
-			resetPID();
-			turningAfter = true;
-			System.out.println("Finished Action " + action + ": forward movement for 0.85s");
-		} else if (action == 3) { // Final Forward and coil movement
-			System.out.println("Finished turn to: " + target + "degrees");
-			timedDrive(0.5);
-			System.out.println("Finished Action " + action + ": forward movement for 0.5s");
-			turningAfter = false;
-		} else if (action == 4) {
-			timedLift(1); // TODO: change for max height on lift
-			System.out.println("Finished Action " + action + ": raise lift for 1s");
-			System.out.println("Ejecting");
-			gripper.eject();
+		} else { // Priority is scale
+
+			if (scalePos == startPosition && scalePos != startPosition) { // If we can't to scale
+				switchAuto();
+			} else if (scalePos == startPosition) { // Do scale
+				scaleAuto();
+			} else {
+				straightAuto();
+			}
 		}
 	}
 
@@ -149,6 +136,147 @@ public class Robot extends IterativeRobot {
 
 	}
 
+	// Actual Autos
+	public void scaleAuto() {
+		if (action == 1) {
+			turningAfter = false;
+			timedDrive(2.5);
+			System.out.println("Finished Action " + action + ": Moving forward for 2.5s");
+		} else if (action == 2) {
+			timedLift(2);
+			System.out.println("Finished Action " + action + ": Raising lift for 2s");
+		} else if (action == 3) {
+			gyro.reset();
+			if (scalePos == 'L') {
+				target = -90;
+			} else {
+				target = 90;
+			}
+			resetPID();
+			turningAfter = true;
+			System.out.println("Finished Action " + action + ": Turning to " + target + " degrees");
+		} else if (action == 4) {
+			turningAfter = false;
+			if (startPosition == scalePos) {
+				timedDrive(0.25);
+				System.out.println("Finished Action " + action + ": Moving forward for 0.25s");
+			} else {
+				timedReverse(0.25);
+				System.out.println("Finished Action " + action + ": Moving backward for 0.25s");
+			}
+		} else if (action == 5) {
+			if (startPosition == scalePos) {
+				gripper.eject();
+				System.out.println("Finished Action " + action + ": Ejecting cube");
+				Timer.delay(1);
+				gripper.stall();
+			}
+		} else if (action == 6) {
+			System.out.println("	Done!");
+		}
+	}
+
+	public void centerSwitchAuto() {
+		if (switchPos == 'L') {
+			target = -55;
+		} else {
+			target = 42;
+		}
+		System.out.println("Finished Initialization: get game data and set autonomous values");
+
+		if (action == 1) { // Initial forward
+			gyro.reset();
+			timedDrive(0.45);
+			turningAfter = true;
+			System.out.println("Finished Action " + action + ": forward movement for 0.45s");
+		} else if (action == 2) { // Side movement
+			System.out.println("Finished Action " + action + "Turning to " + target + " degrees");
+			if (switchPos == 'L') {
+				timedDrive(1);
+			} else {
+				timedDrive(0.85);
+			}
+			target = 0;
+			resetPID();
+			turningAfter = true;
+			System.out.println("Finished Action " + action + ": forward movement for 0.85s");
+		} else if (action == 3) {
+			System.out.println("Finished Action " + action + ": Turning to " + target + "degrees");
+			timedLift(1.5);
+			System.out.println("Finished Action " + action + ": raise lift for 1s");
+		} else if (action == 4) { // Final Forward and gripper movement
+			timedDrive(0.5);
+			System.out.println("Finished Action " + action + ": forward movement for 0.5s");
+			System.out.println("Ejecting");
+			turningAfter = false;
+			gripper.eject();
+		} else if (action == 5) {
+			System.out.println("	Done!");
+		}
+
+	}
+
+	public void switchAuto() {
+		if (action == 1) {
+			gyro.reset();
+			target = 0;
+			turningAfter = true;
+			timedDrive(0.65);
+			System.out.println("Finished Action " + action + ": forward movement for 2.5s");
+		} else if (action == 2) {
+			timedLift(2);
+			System.out.println("Finished Action " + action + ": raising lift for 2s");
+		} else if (action == 3) {
+			if (startPosition == 'L') {
+				target = 90;
+			} else {
+				target = -90;
+			}
+			resetPID();
+			turningAfter = true;
+		} else if (action == 4) {
+			System.out.println("Finished Action " + (action - 1) + ": Turning to " + target + " degrees");
+			brake();
+			if (startPosition == switchPos) {
+				gripper.eject();
+				System.out.println("Ejecting cube :D");
+				Timer.delay(1);
+				gripper.stall();
+				turningAfter = false;
+			} else {
+				System.out.println("Not ejecting cube D:");
+				Timer.delay(1);
+				gripper.stall();
+				turningAfter = false;
+			}
+		} else if (action == 5) {
+			System.out.println("	Done!");
+		}
+	}
+
+	public void straightAuto() {
+		if (action == 1) {
+			turningAfter = false;
+			timedDrive(2);
+			System.out.println("Finished Action " + action + ": Moving forward for 2s");
+		} else if (action == 2) {
+			timedLift(2);
+			System.out.println("Finished Action " + action + ": Raising lift for 2s");
+		} else if (action == 3) {
+			if (startPosition == 'L') {
+				target = -90;
+			} else {
+				target = 90;
+			}
+			gyro.reset();
+			resetPID();
+			turningAfter = true;
+		} else if (action == 4) {
+			System.out.println("Finished Action " + (action - 1) + ": Turning to " + target + " degrees");
+			System.out.println("	Done!");
+		}
+	}
+
 	// Auto methods
 	public void brake() {
 		drive.arcadeDrive(kBrakePower, 0);
@@ -161,6 +289,12 @@ public class Robot extends IterativeRobot {
 		brake();
 	}
 
+	public void timedReverse(double time) {
+		drive.arcadeDrive(-1, 0);
+		Timer.delay(time);
+		brake();
+	}
+
 	public void timedLift(double time) {
 		lift.climb();
 		Timer.delay(time);
@@ -169,8 +303,9 @@ public class Robot extends IterativeRobot {
 
 	@Override
 	public void teleopInit() {
-		maxSpeed = 0.87;
+		maxSpeed = 1;
 		maxRotation = 0.9;
+		drive.setMaxOutput(1);
 	}
 
 	@Override
@@ -214,6 +349,16 @@ public class Robot extends IterativeRobot {
 		}
 	}
 
+	@Override
+	public void disabledInit() {
+
+	}
+
+	@Override
+	public void disabledPeriodic() {
+
+	}
+
 	private boolean pressed(Joystick controller, int button) {
 		return controller.getRawButton(button);
 	}
@@ -238,11 +383,11 @@ public class Robot extends IterativeRobot {
 	}
 
 	public void setHighGear() {
-		gear.set(DoubleSolenoid.Value.kForward);
+		gear.set(true);
 	}
 
 	public void setLowGear() {
-		gear.set(DoubleSolenoid.Value.kReverse);
+		gear.set(false);
 	}
 
 	private double getAdjusted(double speed) {

@@ -6,8 +6,8 @@ import edu.wpi.first.wpilibj.VictorSP;
 public class Gripper {
 	private VictorSP leftSpinny, rightSpinny;
 	private Solenoid gripper;
-	private static final boolean closed = true;
-	private static final boolean open = false;
+	private static final boolean closed = false;
+	private static final boolean open = true;
 	private static final double intakeSpeed = -0.75;
 	private static final double stallSpeed = -0.15;
 	private static final double dropSpeed = -0.2;
